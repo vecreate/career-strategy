@@ -31,59 +31,6 @@
     overflow: hidden;
   }
 
-  /* ── API KEY MODAL ── */
-  #modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.85);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 100;
-    backdrop-filter: blur(4px);
-  }
-  #modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 36px;
-    max-width: 440px;
-    width: 90%;
-  }
-  #modal h2 {
-    font-size: 18px; font-weight: 700; margin-bottom: 8px;
-  }
-  #modal p {
-    font-size: 13px; color: var(--text-sub); line-height: 1.7; margin-bottom: 24px;
-  }
-  #modal input {
-    width: 100%;
-    background: var(--surface2);
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    color: var(--text);
-    font-size: 14px;
-    font-family: monospace;
-    margin-bottom: 12px;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  #modal input:focus { border-color: var(--accent); }
-  #modal button {
-    width: 100%;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 13px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-  #modal button:hover { opacity: 0.88; }
-  #modal-note {
-    font-size: 11px; color: var(--text-dim); margin-top: 10px; text-align: center;
-  }
-
   /* ── HEADER ── */
   header {
     padding: 16px 24px;
@@ -415,24 +362,10 @@
 </head>
 <body>
 
-<!-- API Key Modal -->
-<div id="modal-overlay">
-  <div id="modal">
-    <h2>APIキーを入力してください</h2>
-    <p>このサービスはAnthropic（Claude）のAPIを使用します。<br>Anthropicのダッシュボードでキーを取得してください。<br>キーはこのブラウザ内のみで使用し、外部に送信されません。</p>
-    <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
-    <button onclick="saveApiKey()">はじめる</button>
-    <p id="modal-note">キーは console.anthropic.com で取得できます</p>
-  </div>
-</div>
-
 <!-- Header -->
 <header>
   <div class="logo">CAREER<span>.</span>STRATEGY</div>
-  <div style="display:flex;align-items:center;gap:12px">
-    <div style="font-size:11px;color:var(--text-dim)">環境抽出型キャリア設計</div>
-    <button onclick="resetApiKey()" style="font-size:11px;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;">APIキー変更</button>
-  </div>
+  <div style="font-size:11px;color:var(--text-dim)">環境抽出型キャリア設計</div>
 </header>
 
 <!-- Stage Bar -->
@@ -493,7 +426,6 @@
 </div>
 
 <script>
-let apiKey = '';
 let messages = [];
 let isTyping = false;
 let currentStage = 0;
@@ -507,24 +439,6 @@ let lastReportText = ''; // レポート全文（メール送信用）
 
 // Stage markers: AI outputs [STAGE:N] when transitioning
 const stageNames = ['開始前','家庭環境','バイト/日常','人間関係','自己認識','エネルギー','戦略レポート'];
-
-function saveApiKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  if (!key.startsWith('sk-ant-') && !key.startsWith('sk-')) {
-    document.getElementById('api-key-input').style.borderColor = '#e74c3c';
-    document.getElementById('api-key-input').placeholder = '正しいキーを入力してください（sk-ant-... から始まります）';
-    return;
-  }
-  apiKey = key;
-  document.getElementById('modal-overlay').style.display = 'none';
-}
-
-function resetApiKey() {
-  apiKey = '';
-  document.getElementById('api-key-input').value = '';
-  document.getElementById('api-key-input').style.borderColor = '';
-  document.getElementById('modal-overlay').style.display = 'flex';
-}
 
 async function startChat() {
   const name  = document.getElementById('input-name').value.trim();
@@ -638,7 +552,7 @@ async function sendToAI(msgs) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: msgs, apiKey })
+      body: JSON.stringify({ messages: msgs })
     });
 
     const data = await res.json();
