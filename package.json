@@ -1,0 +1,10 @@
+{
+  "name": "career-strategy",
+  "version": "1.0.0",
+  "description": "環境抽出型キャリア戦略設計サービス",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理ダッシュボード | CAREER STRATEGY</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #242424;
+    --border: #2e2e2e; --accent: #7c3aed; --text: #f0f0f0;
+    --text-sub: #888; --text-dim: #555;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    min-height: 100vh; padding: 32px 24px;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 32px;
+  }
+  .logo { font-size: 13px; font-weight: 700; }
+  .logo span { color: var(--accent); }
+  .subtitle { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .refresh-btn {
+    font-size: 11px; color: var(--text-dim); background: none;
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 14px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* KPI cards */
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 28px;
+  }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+  }
+  .kpi-label { font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .kpi-value { font-size: 32px; font-weight: 700; color: var(--accent); line-height: 1; }
+  .kpi-unit  { font-size: 13px; color: var(--text-sub); font-weight: 400; margin-left: 4px; }
+
+  /* Section */
+  .section { margin-bottom: 28px; }
+  .section-title {
+    font-size: 11px; color: var(--text-dim); letter-spacing: 0.1em;
+    text-transform: uppercase; font-weight: 600; margin-bottom: 12px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px;
+  }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Score bar chart */
+  .bar-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .bar-label { font-size: 11px; color: var(--text-sub); width: 36px; flex-shrink: 0; text-align: right; }
+  .bar-track {
+    flex: 1; height: 20px; background: var(--surface2); border-radius: 4px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent), #a855f7);
+    transition: width 0.6s ease;
+    display: flex; align-items: center; justify-content: flex-end; padding-right: 6px;
+  }
+  .bar-count { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); }
+
+  /* Pattern list */
+  .pattern-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .pattern-item:last-child { border-bottom: none; }
+  .pattern-name { color: var(--text-sub); }
+  .pattern-count {
+    font-weight: 700; color: var(--accent); font-size: 14px;
+    background: rgba(124,58,237,0.1); padding: 2px 10px; border-radius: 20px;
+  }
+
+  /* Timeline */
+  .timeline-wrap { overflow-x: auto; }
+  .timeline-chart {
+    display: flex; align-items: flex-end; gap: 6px;
+    height: 80px; min-width: 100%;
+    padding-top: 8px;
+  }
+  .day-bar-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    flex: 1; min-width: 28px;
+  }
+  .day-bar {
+    width: 100%; background: var(--accent); border-radius: 3px 3px 0 0;
+    opacity: 0.7; transition: opacity 0.15s; cursor: default;
+    min-height: 4px;
+  }
+  .day-bar:hover { opacity: 1; }
+  .day-label { font-size: 9px; color: var(--text-dim); white-space: nowrap; }
+
+  /* Empty state */
+  .empty {
+    text-align: center; padding: 40px 20px;
+    color: var(--text-dim); font-size: 13px; line-height: 1.8;
+  }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; }
+
+  #last-updated { font-size: 10px; color: var(--text-dim); text-align: right; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">CAREER<span>.</span>STRATEGY <span style="color:var(--text-dim);font-weight:400;">管理ダッシュボード</span></div>
+    <div class="subtitle">セッションデータの集計・分析</div>
+  </div>
+  <button class="refresh-btn" onclick="loadData()">↻ 更新</button>
+</header>
+
+<!-- KPI -->
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-label">累計セッション</div>
+    <div class="kpi-value" id="kpi-total">—</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">平均スコア</div>
+    <div class="kpi-value" id="kpi-avg">—<span class="kpi-unit">/5</span></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">レポート完走率</div>
+    <div class="kpi-value" id="kpi-rate">—<span class="kpi-unit">%</span></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">直近7日</div>
+    <div class="kpi-value" id="kpi-week">—</div>
+  </div>
+</div>
+
+<div class="two-col">
+  <!-- Score distribution -->
+  <div class="section">
+    <div class="section-title">環境抽出力スコア分布</div>
+    <div class="card" id="score-chart">
+      <div class="empty"><div class="empty-icon">📊</div>データがまだありません</div>
+    </div>
+  </div>
+
+  <!-- Thinking patterns -->
+  <div class="section">
+    <div class="section-title">思考パターン Top</div>
+    <div class="card" id="pattern-list">
+      <div class="empty"><div class="empty-icon">🧠</div>データがまだありません</div>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline -->
+<div class="section">
+  <div class="section-title">セッション数の推移（日次）</div>
+  <div class="card">
+    <div class="timeline-wrap">
+      <div class="timeline-chart" id="timeline">
+        <div class="empty" style="width:100%"><div class="empty-icon">📈</div>データがまだありません</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="last-updated"></div>
+
+<script>
+async function loadData() {
+  try {
+    const res = await fetch('/api/stats');
+    const d   = await res.json();
+    render(d);
+    document.getElementById('last-updated').textContent =
+      '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function render(d) {
+  // KPIs
+  document.getElementById('kpi-total').textContent = d.total ?? '0';
+  document.getElementById('kpi-avg').innerHTML =
+    d.avgScore !== null ? d.avgScore + '<span class="kpi-unit">/5</span>' : '—';
+
+  // 完走率 = total (全員レポートまで完走した人のカウントは今はtotalと同じ)
+  document.getElementById('kpi-rate').innerHTML =
+    d.total > 0 ? '100<span class="kpi-unit">%</span>' : '—';
+
+  // 直近7日
+  const week7 = calcWeek(d.byDay);
+  document.getElementById('kpi-week').textContent = week7 > 0 ? week7 : '0';
+
+  // Score distribution
+  renderScoreChart(d.scoreBuckets || [0,0,0,0,0]);
+
+  // Patterns
+  renderPatterns(d.patternCount || {});
+
+  // Timeline
+  renderTimeline(d.byDay || {});
+}
+
+function calcWeek(byDay) {
+  if (!byDay) return 0;
+  const now = Date.now();
+  return Object.entries(byDay).reduce((acc, [day, count]) => {
+    const diff = (now - new Date(day).getTime()) / 86400000;
+    return diff <= 7 ? acc + count : acc;
+  }, 0);
+}
+
+function renderScoreChart(buckets) {
+  const labels = ['1以下','1〜2','2〜3','3〜4','4〜5'];
+  const max    = Math.max(...buckets, 1);
+  const el     = document.getElementById('score-chart');
+
+  if (buckets.every(b => b === 0)) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div>データがまだありません</div>';
+    return;
+  }
+
+  el.innerHTML = buckets.map((count, i) => `
+    <div class="bar-row">
+      <div class="bar-label">★${labels[i]}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${Math.max(count/max*100,0)}%">
+          ${count > 0 ? `<span class="bar-count">${count}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderPatterns(patternCount) {
+  const el      = document.getElementById('pattern-list');
+  const entries = Object.entries(patternCount).sort((a,b) => b[1]-a[1]).slice(0, 6);
+
+  if (entries.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🧠</div>データがまだありません</div>';
+    return;
+  }
+
+  el.innerHTML = entries.map(([name, count]) => `
+    <div class="pattern-item">
+      <span class="pattern-name">${name || '未分類'}</span>
+      <span class="pattern-count">${count}人</span>
+    </div>
+  `).join('');
+}
+
+function renderTimeline(byDay) {
+  const el = document.getElementById('timeline');
+
+  // 過去30日分
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    const key = d.toISOString().substr(0, 10);
+    days.push({ key, label: `${d.getMonth()+1}/${d.getDate()}`, count: byDay[key] || 0 });
+  }
+
+  const max = Math.max(...days.map(d => d.count), 1);
+  if (days.every(d => d.count === 0)) {
+    el.innerHTML = '<div class="empty" style="width:100%"><div class="empty-icon">📈</div>データがまだありません</div>';
+    return;
+  }
+
+  el.innerHTML = days.map(d => `
+    <div class="day-bar-wrap" title="${d.key}: ${d.count}件">
+      <div class="day-bar" style="height:${Math.max(d.count/max*60,d.count>0?4:0)}px"></div>
+      <div class="day-label">${d.label}</div>
+    </div>
+  `).join('');
+}
+
+// 起動時に読み込み
+loadData();
+// 60秒ごとに自動更新
+setInterval(loadData, 60000);
+</script>
+</body>
+</html>

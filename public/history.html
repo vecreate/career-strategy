@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成長履歴 | CAREER STRATEGY</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #242424;
+    --border: #2e2e2e; --accent: #7c3aed; --text: #f0f0f0;
+    --text-sub: #888; --text-dim: #555;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-size: 14px; font-weight: 700; }
+  .logo span { color: var(--accent); }
+  a.back-btn {
+    font-size: 12px; color: var(--text-dim);
+    text-decoration: none; border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 12px;
+  }
+  a.back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Login form */
+  #login-screen {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: calc(100vh - 60px); gap: 16px; padding: 24px;
+  }
+  #login-screen h2 { font-size: 18px; font-weight: 700; }
+  #login-screen p  { font-size: 13px; color: var(--text-sub); text-align: center; }
+  #email-input {
+    width: 100%; max-width: 320px;
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    color: var(--text); font-size: 14px; font-family: inherit;
+    outline: none; transition: border-color 0.15s;
+  }
+  #email-input:focus { border-color: var(--accent); }
+  #login-btn {
+    width: 100%; max-width: 320px;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; padding: 13px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  #login-btn:hover { opacity: 0.85; }
+  #login-error { font-size: 12px; color: #ef4444; }
+
+  /* Main content */
+  #main-screen { display: none; padding: 28px 24px; max-width: 720px; margin: 0 auto; }
+
+  .user-header { margin-bottom: 24px; }
+  .user-name  { font-size: 20px; font-weight: 700; }
+  .user-email { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+  /* Growth summary */
+  .growth-bar {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px;
+    display: flex; align-items: center; gap: 24px;
+    margin-bottom: 24px; flex-wrap: wrap;
+  }
+  .growth-item { text-align: center; }
+  .growth-label { font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+  .growth-val   { font-size: 28px; font-weight: 700; color: var(--accent); line-height: 1; }
+  .growth-sub   { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
+  .growth-arrow {
+    font-size: 24px; color: #34d399; font-weight: 700;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .growth-arrow small { font-size: 10px; color: #34d399; }
+
+  /* Score timeline SVG */
+  .chart-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px;
+    margin-bottom: 24px;
+  }
+  .chart-title { font-size: 11px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; font-weight: 600; }
+  #score-svg { width: 100%; overflow: visible; }
+
+  /* Session list */
+  .section-title { font-size: 11px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; margin-bottom: 12px; }
+  .session-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 10px;
+    display: flex; align-items: flex-start; gap: 16px;
+  }
+  .session-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(124,58,237,0.2); color: var(--accent);
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .session-body { flex: 1; }
+  .session-date    { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .session-score   { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .session-pattern { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
+  .session-meta    { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+  .score-badge {
+    font-size: 10px; font-weight: 700; padding: 3px 8px;
+    border-radius: 20px; white-space: nowrap;
+  }
+  .badge-up   { background: rgba(52,211,153,0.15); color: #34d399; }
+  .badge-same { background: rgba(124,58,237,0.15); color: var(--accent); }
+  .badge-down { background: rgba(239,68,68,0.1);  color: #ef4444; }
+
+  .cta {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; text-align: center; margin-top: 8px;
+  }
+  .cta p   { font-size: 13px; color: var(--text-sub); margin-bottom: 14px; }
+  .cta a   {
+    display: inline-block; background: var(--accent); color: #fff;
+    text-decoration: none; border-radius: 8px; padding: 11px 28px;
+    font-size: 13px; font-weight: 600; transition: opacity 0.15s;
+  }
+  .cta a:hover { opacity: 0.85; }
+
+  .empty { text-align: center; padding: 40px; color: var(--text-dim); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CAREER<span>.</span>STRATEGY</div>
+  <a href="/" class="back-btn">← ホームに戻る</a>
+</header>
+
+<!-- ログイン画面 -->
+<div id="login-screen">
+  <h2>📈 成長履歴を確認する</h2>
+  <p>登録したメールアドレスを入力してください。<br>過去のセッションと成長グラフが表示されます。</p>
+  <input type="email" id="email-input" placeholder="メールアドレスを入力" autocomplete="email">
+  <div id="login-error"></div>
+  <button id="login-btn" onclick="loadHistory()">履歴を見る</button>
+</div>
+
+<!-- メイン画面 -->
+<div id="main-screen">
+  <div class="user-header">
+    <div class="user-name" id="display-name"></div>
+    <div class="user-email" id="display-email"></div>
+  </div>
+
+  <!-- 成長サマリー -->
+  <div class="growth-bar" id="growth-summary"></div>
+
+  <!-- スコア推移グラフ -->
+  <div class="chart-wrap" id="chart-wrap" style="display:none">
+    <div class="chart-title">環境抽出力スコアの推移</div>
+    <svg id="score-svg" height="120"></svg>
+  </div>
+
+  <!-- セッション一覧 -->
+  <div class="section-title" style="margin-bottom:12px">セッション履歴</div>
+  <div id="session-list"></div>
+
+  <!-- 次のアクション -->
+  <div class="cta">
+    <p>今の自分のレベルを再確認しましょう。前回との差が成長の証拠です。</p>
+    <a href="/" id="retry-link">もう一度やってみる →</a>
+  </div>
+</div>
+
+<script>
+// URLパラメータからメールを自動入力
+const params = new URLSearchParams(location.search);
+const urlEmail = params.get('email');
+if (urlEmail) {
+  document.getElementById('email-input').value = urlEmail;
+  loadHistory();
+}
+
+document.getElementById('email-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadHistory();
+});
+
+async function loadHistory() {
+  const email = document.getElementById('email-input').value.trim();
+  if (!email) return;
+
+  document.getElementById('login-btn').textContent = '読み込み中…';
+  document.getElementById('login-error').textContent = '';
+
+  try {
+    const res  = await fetch(`/api/user-history?email=${encodeURIComponent(email)}`);
+    const data = await res.json();
+
+    if (!data.sessions || data.sessions.length === 0) {
+      document.getElementById('login-error').textContent =
+        'このメールアドレスのデータが見つかりませんでした。';
+      document.getElementById('login-btn').textContent = '履歴を見る';
+      return;
+    }
+
+    renderHistory(data.user, data.sessions, email);
+  } catch (e) {
+    document.getElementById('login-error').textContent = '通信エラーが発生しました。';
+    document.getElementById('login-btn').textContent = '履歴を見る';
+  }
+}
+
+function renderHistory(user, sessions, email) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display  = 'block';
+
+  // User header
+  document.getElementById('display-name').textContent  = user ? (user.name || '匿名ユーザー') : '匿名ユーザー';
+  document.getElementById('display-email').textContent = email;
+
+  // Set retry link with email
+  document.getElementById('retry-link').href = `/?email=${encodeURIComponent(email)}`;
+
+  // Growth summary
+  const scored  = sessions.filter(s => s.score !== null);
+  const first   = scored[0];
+  const latest  = scored[scored.length - 1];
+  const diff    = (first && latest && first !== latest)
+    ? Math.round((latest.score - first.score) * 10) / 10
+    : null;
+
+  const summaryEl = document.getElementById('growth-summary');
+  summaryEl.innerHTML = `
+    <div class="growth-item">
+      <div class="growth-label">総セッション数</div>
+      <div class="growth-val">${sessions.length}</div>
+      <div class="growth-sub">回</div>
+    </div>
+    ${first ? `
+    <div class="growth-item">
+      <div class="growth-label">初回スコア</div>
+      <div class="growth-val">★${first.score}</div>
+      <div class="growth-sub">/5</div>
+    </div>` : ''}
+    ${latest && latest !== first ? `
+    <div class="growth-arrow">
+      <span>→</span>
+      <small>${diff > 0 ? '+' : ''}${diff}</small>
+    </div>
+    <div class="growth-item">
+      <div class="growth-label">最新スコア</div>
+      <div class="growth-val" style="color:#34d399">★${latest.score}</div>
+      <div class="growth-sub">/5</div>
+    </div>` : ''}
+    <div class="growth-item">
+      <div class="growth-label">初回使用日</div>
+      <div class="growth-val" style="font-size:16px">${sessions[0] ? fmtDate(sessions[0].date) : '—'}</div>
+    </div>
+  `;
+
+  // Score chart
+  if (scored.length >= 2) {
+    document.getElementById('chart-wrap').style.display = 'block';
+    drawChart(scored);
+  }
+
+  // Session list (newest first)
+  const listEl = document.getElementById('session-list');
+  const rev    = [...sessions].reverse();
+  listEl.innerHTML = rev.map((s, i) => {
+    const idx  = sessions.length - i;
+    const prev = i < rev.length - 1 ? rev[i + 1] : null;
+    let badge  = '';
+    if (s.score !== null && prev && prev.score !== null) {
+      const d = s.score - prev.score;
+      if (d > 0)      badge = `<span class="score-badge badge-up">▲ +${Math.round(d*10)/10} 成長</span>`;
+      else if (d < 0) badge = `<span class="score-badge badge-down">▼ ${Math.round(d*10)/10}</span>`;
+      else            badge = `<span class="score-badge badge-same">→ 維持</span>`;
+    }
+    return `
+      <div class="session-card">
+        <div class="session-num">${idx}</div>
+        <div class="session-body">
+          <div class="session-date">${fmtDateTime(s.date)}</div>
+          ${s.score !== null ? `<div class="session-score">★${s.score}/5 ${badge}</div>` : ''}
+          ${s.pattern ? `<div class="session-pattern">思考パターン：${s.pattern}</div>` : ''}
+          <div class="session-meta">${s.durationMin ? s.durationMin + '分' : ''}${s.turnCount ? ' · ' + s.turnCount + 'ターン' : ''}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function drawChart(sessions) {
+  const svg    = document.getElementById('score-svg');
+  const W      = svg.parentElement.clientWidth - 40;
+  const H      = 100;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const pad = 20;
+  const xs  = sessions.map((_, i) => pad + i * ((W - pad * 2) / Math.max(sessions.length - 1, 1)));
+  const ys  = sessions.map(s => H - pad - (s.score / 5) * (H - pad * 2));
+
+  // Grid line at ★3
+  const y3 = H - pad - (3 / 5) * (H - pad * 2);
+  svg.innerHTML = `
+    <line x1="${pad}" y1="${y3}" x2="${W - pad}" y2="${y3}"
+      stroke="#2e2e2e" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="${pad - 4}" y="${y3 + 4}" fill="#555" font-size="9" text-anchor="end">★3</text>
+    <polyline points="${xs.map((x,i) => `${x},${ys[i]}`).join(' ')}"
+      fill="none" stroke="#7c3aed" stroke-width="2" stroke-linejoin="round"/>
+    ${sessions.map((s, i) => `
+      <circle cx="${xs[i]}" cy="${ys[i]}" r="5" fill="#7c3aed"/>
+      <text x="${xs[i]}" y="${ys[i] - 9}" fill="#a78bfa" font-size="10" text-anchor="middle" font-weight="600">★${s.score}</text>
+      <text x="${xs[i]}" y="${H - 2}" fill="#555" font-size="9" text-anchor="middle">${fmtShort(s.date)}</text>
+    `).join('')}
+  `;
+}
+
+function fmtDate(iso)     { const d = new Date(iso); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
+function fmtShort(iso)    { const d = new Date(iso); return `${d.getMonth()+1}/${d.getDate()}`; }
+function fmtDateTime(iso) { const d = new Date(iso); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`; }
+</script>
+</body>
+</html>
