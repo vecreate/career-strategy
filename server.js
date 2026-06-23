@@ -564,25 +564,50 @@ function handleChat(req, res) {
       }
     };
 
-    const apiReq = https.request(options, (apiRes) => {
+    // リトライ付きAPI呼び出し
+  function doRequest(opts, pl, attempt) {
+    const req = https.request(opts, (apiRes) => {
       let data = '';
       apiRes.on('data', chunk => data += chunk);
       apiRes.on('end', () => {
-        res.writeHead(apiRes.statusCode, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        });
+        if ((apiRes.statusCode === 529 || apiRes.statusCode === 503) && attempt <= 3) {
+          const wait = attempt * 4000;
+          console.log('[RETRY] Overloaded attempt=' + attempt + ' wait=' + wait + 'ms');
+          if (attempt < 3) {
+            setTimeout(() => doRequest(opts, pl, attempt + 1), wait);
+          } else {
+            // Haikuにフォールバック
+            console.log('[FALLBACK] Haiku');
+            const fb = JSON.parse(pl);
+            fb.model = 'claude-haiku-4-5-20251001';
+            const fbPl = JSON.stringify(fb);
+            const fbOpts = JSON.parse(JSON.stringify(opts));
+            fbOpts.headers['Content-Length'] = Buffer.byteLength(fbPl);
+            const fbReq = https.request(fbOpts, (fr) => {
+              let fd = '';
+              fr.on('data', c => fd += c);
+              fr.on('end', () => {
+                res.writeHead(fr.statusCode, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(fd);
+              });
+            });
+            fbReq.on('error', (e) => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({error:{message:e.message}})); });
+            fbReq.write(fbPl);
+            fbReq.end();
+          }
+          return;
+        }
+        res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         res.end(data);
       });
     });
-
-    apiReq.on('error', (e) => {
+    req.on('error', (e) => {
+      if (attempt < 3) { setTimeout(() => doRequest(opts, pl, attempt + 1), 3000); return; }
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: e.message }));
     });
-
-    apiReq.write(payload);
-    apiReq.end();
+  }
+  doRequest(options, payload, 1);
   });
 }
 
