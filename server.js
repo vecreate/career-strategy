@@ -537,7 +537,7 @@ function serveHtml(res, filePath) {
   });
 }
 
-// Proxy to Anthropic API — ストリーミング版
+// Proxy to Anthropic API
 function handleChat(req, res) {
   let body = '';
   req.on('data', chunk => body += chunk);
@@ -545,92 +545,75 @@ function handleChat(req, res) {
     const { messages } = JSON.parse(body);
     const apiKey = process.env.ANTHROPIC_API_KEY || '';
 
-    function doStream(model, attempt) {
-      const payloadObj = {
-        model,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        stream: true,
-        messages
-      };
-      const payload = JSON.stringify(payloadObj);
-      const options = {
-        timeout: 55000,
-        hostname: 'api.anthropic.com',
-        path: '/v1/messages',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'Content-Length': Buffer.byteLength(payload)
-        }
-      };
+    const payload = JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages
+    });
 
-      const apiReq = https.request(options, (apiRes) => {
-        // 混雑エラー: まだヘッダーを送っていないのでリトライ可能
-        if (apiRes.statusCode === 529 || apiRes.statusCode === 503) {
-          console.log('[RETRY] status=' + apiRes.statusCode + ' attempt=' + attempt);
+    const options = {
+    timeout: 55000,
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    // リトライ付きAPI呼び出し
+  function doRequest(opts, pl, attempt) {
+    const req = https.request(opts, (apiRes) => {
+      let data = '';
+      apiRes.on('data', chunk => data += chunk);
+      apiRes.on('end', () => {
+        if ((apiRes.statusCode === 529 || apiRes.statusCode === 503) && attempt <= 3) {
+          const wait = attempt * 4000;
+          console.log('[RETRY] Overloaded attempt=' + attempt + ' wait=' + wait + 'ms');
           if (attempt < 3) {
-            setTimeout(() => doStream(model, attempt + 1), attempt * 4000);
-          } else if (model !== 'claude-haiku-4-5-20251001') {
-            console.log('[FALLBACK] Haiku');
-            doStream('claude-haiku-4-5-20251001', 1);
+            setTimeout(() => doRequest(opts, pl, attempt + 1), wait);
           } else {
-            res.writeHead(503, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: { message: 'Overloaded. Please try again.' } }));
+            // Haikuにフォールバック
+            console.log('[FALLBACK] Haiku');
+            const fb = JSON.parse(pl);
+            fb.model = 'claude-haiku-4-5-20251001';
+            const fbPl = JSON.stringify(fb);
+            const fbOpts = JSON.parse(JSON.stringify(opts));
+            fbOpts.headers['Content-Length'] = Buffer.byteLength(fbPl);
+            const fbReq = https.request(fbOpts, (fr) => {
+              let fd = '';
+              fr.on('data', c => fd += c);
+              fr.on('end', () => {
+                res.writeHead(fr.statusCode, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(fd);
+              });
+            });
+            fbReq.on('error', (e) => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({error:{message:e.message}})); });
+            fbReq.write(fbPl);
+            fbReq.end();
           }
           return;
         }
-
-        // ストリーミング開始
-        res.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Access-Control-Allow-Origin': '*',
-          'Connection': 'keep-alive'
-        });
-
-        apiRes.on('data', chunk => {
-          if (!res.writableEnded) res.write(chunk);
-        });
-        apiRes.on('end', () => {
-          if (!res.writableEnded) res.end();
-        });
+        res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(data);
       });
-
-      apiReq.on('timeout', () => {
-        apiReq.destroy();
-        if (attempt < 3) { setTimeout(() => doStream(model, attempt + 1), 3000); return; }
-        if (!res.headersSent) {
-          res.writeHead(504, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: { message: 'Timeout. Please try again.' } }));
-        } else if (!res.writableEnded) {
-          res.write('data: {"type":"error","error":{"message":"timeout"}}
-
-');
-          res.end();
-        }
-      });
-
-      apiReq.on('error', (e) => {
-        if (attempt < 3) { setTimeout(() => doStream(model, attempt + 1), 3000); return; }
-        if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: { message: e.message } }));
-        } else if (!res.writableEnded) {
-          res.write('data: {"type":"error","error":{"message":"' + e.message + '"}}
-
-');
-          res.end();
-        }
-      });
-
-      apiReq.write(payload);
-      apiReq.end();
-    }
-
-    doStream('claude-sonnet-4-6', 1);
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      if (attempt <= 3) { setTimeout(() => doRequest(opts, pl, attempt + 1), 3000); }
+      else { res.writeHead(504, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:{message:'Anthropic API timeout'}})); }
+    });
+    req.on('error', (e) => {
+      if (attempt < 3) { setTimeout(() => doRequest(opts, pl, attempt + 1), 3000); return; }
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+  }
+  doRequest(options, payload, 1);
   });
 }
 
