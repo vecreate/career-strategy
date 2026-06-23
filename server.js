@@ -553,6 +553,7 @@ function handleChat(req, res) {
     });
 
     const options = {
+    timeout: 55000,
       hostname: 'api.anthropic.com',
       path: '/v1/messages',
       method: 'POST',
@@ -600,6 +601,11 @@ function handleChat(req, res) {
         res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         res.end(data);
       });
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      if (attempt <= 3) { setTimeout(() => doRequest(opts, pl, attempt + 1), 3000); }
+      else { res.writeHead(504, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:{message:'Anthropic API timeout'}})); }
     });
     req.on('error', (e) => {
       if (attempt < 3) { setTimeout(() => doRequest(opts, pl, attempt + 1), 3000); return; }
