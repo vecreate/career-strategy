@@ -300,6 +300,43 @@ function handleUserHistory(req, res) {
 }
 
 // GET /api/stats  – returns aggregated data for admin dashboard
+
+// CSV エクスポート
+function handleExportCSV(req, res) {
+  try {
+    const sessionsPath = path.join(__dirname, 'data', 'sessions.json');
+    const sessions = fs.existsSync(sessionsPath)
+      ? JSON.parse(fs.readFileSync(sessionsPath, 'utf8'))
+      : {};
+
+    const rows = [];
+    rows.push(['セッションID', '名前', 'メール', 'スコア', '思考パターン', '完了日時', 'レポート'].join(','));
+
+    for (const [id, s] of Object.entries(sessions)) {
+      const row = [
+        id,
+        (s.name || '').replace(/,/g, '、'),
+        (s.email || '').replace(/,/g, '、'),
+        s.score || '',
+        (s.pattern || '').replace(/,/g, '、'),
+        s.completedAt || s.createdAt || '',
+        (s.report || '').replace(/\n/g, ' ').replace(/,/g, '、').substring(0, 500)
+      ];
+      rows.push(row.join(','));
+    }
+
+    const csv = rows.join('\n');
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="elekavo_sessions.csv"'
+    });
+    res.end('\uFEFF' + csv); // BOM付きでExcel対応
+  } catch (e) {
+    res.writeHead(500);
+    res.end('Export failed: ' + e.message);
+  }
+}
+
 function handleStats(req, res) {
   const sessions = readSessions();
   const total = sessions.length;
@@ -492,6 +529,8 @@ const server = http.createServer((req, res) => {
     handleUserHistory(req, res);
   } else if (parsedUrl.pathname === '/api/stats' && req.method === 'GET') {
     handleStats(req, res);
+  } else if (parsedUrl.pathname === '/api/export-csv' && req.method === 'GET') {
+    handleExportCSV(req, res);
   } else if (parsedUrl.pathname === '/api/match' && req.method === 'POST') {
     handleMatch(req, res);
   } else {

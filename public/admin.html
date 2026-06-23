@@ -117,7 +117,17 @@
 <header>
   <div>
     <div class="logo">CAREER<span>.</span>STRATEGY <span style="color:var(--text-dim);font-weight:400;">管理ダッシュボード</span></div>
-    <div class="subtitle">セッションデータの集計・分析</div>
+    <div class="subtitle">セッションデータの集計・分析<br><a href="/api/export-csv" download style="
+  display:inline-block;
+  margin: 16px 0;
+  padding: 10px 24px;
+  background: #7c3aed;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 14px;
+">📥 CSVダウンロード</a></div>
   </div>
   <button class="refresh-btn" onclick="loadData()">↻ 更新</button>
 </header>
