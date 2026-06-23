@@ -555,35 +555,75 @@ async function sendToAI(msgs) {
       body: JSON.stringify({ messages: msgs })
     });
 
-    const data = await res.json();
-    removeTyping();
-
-    if (data.error || !data.content) {
+    // ストリーミングでない場合（エラーレスポンス等）
+    if (!res.headers.get('content-type')?.includes('text/event-stream')) {
+      const data = await res.json();
+      removeTyping();
       addMessage('ai', `エラーが発生しました: ${data.error?.message || JSON.stringify(data)}`);
-    } else {
-      let aiText = data.content[0].text;
-
-      // Detect [STAGE:N] marker and remove from display
-      const stageMatch = aiText.match(/\[STAGE:(\d)\]/);
-      if (stageMatch) {
-        const s = parseInt(stageMatch[1]);
-        if (s > currentStage) {
-          currentStage = s;
-          updateStageBar(currentStage);
-        }
-        aiText = aiText.replace(/\[STAGE:\d\]\s*/g, '');
-
-        // Stage 6 = report complete → save session data
-        if (s === 6) saveSessionData(aiText);
-      }
-
-      // Safety: strip role-label lines the AI might have hallucinated
-      aiText = aiText.replace(/^(user|User|us|Us|use|Use|model|Model|assistant|Assistant|ユーザー)[^\n]*\n?/gm, '').trim();
-
-      turnCount++;
-      messages.push({ role: 'assistant', content: aiText });
-      addMessage('ai', aiText);
+      isTyping = false;
+      document.getElementById('send-btn').disabled = false;
+      document.getElementById('user-input').focus();
+      return;
     }
+
+    removeTyping();
+    const msgDiv = addMessage('ai', '');
+    const bubble = msgDiv.querySelector('.bubble');
+    const chatWrap = document.getElementById('chat-wrap');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      sseBuffer += decoder.decode(value, { stream: true });
+      const lines = sseBuffer.split('\n');
+      sseBuffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw || raw === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+            fullText += parsed.delta.text;
+            // [STAGE:N]は非表示にしてリアルタイム表示
+            const display = fullText.replace(/\[STAGE:\d\]\s*/g, '');
+            bubble.innerHTML = formatContent(display);
+            chatWrap.scrollTop = chatWrap.scrollHeight;
+          } else if (parsed.type === 'error') {
+            bubble.innerHTML = formatContent(`エラー: ${parsed.error?.message || 'Unknown error'}`);
+          }
+        } catch(e) {}
+      }
+    }
+
+    // ストリーム完了後: ステージ処理
+    let aiText = fullText;
+    const stageMatch = aiText.match(/\[STAGE:(\d)\]/);
+    if (stageMatch) {
+      const s = parseInt(stageMatch[1]);
+      if (s > currentStage) {
+        currentStage = s;
+        updateStageBar(currentStage);
+      }
+      aiText = aiText.replace(/\[STAGE:\d\]\s*/g, '');
+      if (s === 6) saveSessionData(aiText);
+    }
+
+    aiText = aiText.replace(/^(user|User|us|Us|use|Use|model|Model|assistant|Assistant|ユーザー)[^\n]*\n?/gm, '').trim();
+    bubble.innerHTML = formatContent(aiText);
+    chatWrap.scrollTop = chatWrap.scrollHeight;
+
+    turnCount++;
+    messages.push({ role: 'assistant', content: aiText });
+
   } catch (e) {
     removeTyping();
     addMessage('ai', `通信エラー: ${e.message}`);
