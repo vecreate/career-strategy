@@ -337,6 +337,93 @@ function handleExportCSV(req, res) {
   }
 }
 
+
+// 全セッション一覧API
+function handleGetSessions(req, res) {
+  try {
+    const sessionsPath = path.join(__dirname, 'data', 'sessions.json');
+    const sessions = fs.existsSync(sessionsPath)
+      ? JSON.parse(fs.readFileSync(sessionsPath, 'utf8'))
+      : {};
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(sessions));
+  } catch(e) {
+    res.writeHead(500);
+    res.end(JSON.stringify({ error: e.message }));
+  }
+}
+
+// 個別レポートHTML
+function handleReportPage(req, res, sessionId) {
+  try {
+    const sessionsPath = path.join(__dirname, 'data', 'sessions.json');
+    const sessions = fs.existsSync(sessionsPath)
+      ? JSON.parse(fs.readFileSync(sessionsPath, 'utf8'))
+      : {};
+    const s = sessions[sessionId];
+    if (!s) {
+      res.writeHead(404);
+      res.end('セッションが見つかりません');
+      return;
+    }
+
+    const reportHtml = (s.report || 'レポートなし')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>').replace(/##\s?(.*?)<br>/g, '<h2>$1</h2>')
+      .replace(/###\s?(.*?)<br>/g, '<h3>$1</h3>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/★(\d)\/5/g, (m, n) => '★'.repeat(parseInt(n)) + '☆'.repeat(5-parseInt(n)));
+
+    const date = new Date(s.completedAt || s.createdAt || Date.now()).toLocaleDateString('ja-JP');
+
+    const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELEKAVO レポート - ${s.name || '匿名'}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 40px; max-width: 800px; margin: 0 auto; }
+  .header { background: linear-gradient(135deg, #1a1a2e, #16213e); border: 1px solid #7c3aed; border-radius: 12px; padding: 24px; margin-bottom: 32px; }
+  .service-name { color: #7c3aed; font-size: 13px; font-weight: bold; letter-spacing: 3px; margin-bottom: 8px; }
+  .user-name { font-size: 24px; font-weight: bold; color: #fff; }
+  .meta { font-size: 13px; color: #888; margin-top: 6px; }
+  .report { background: #1a1a2e; border-radius: 12px; padding: 28px; line-height: 1.8; }
+  h2 { color: #7c3aed; font-size: 16px; margin: 24px 0 8px; border-bottom: 1px solid #2a2a4a; padding-bottom: 6px; }
+  h3 { color: #a78bfa; font-size: 14px; margin: 16px 0 6px; }
+  strong { color: #c4b5fd; }
+  .print-btn { position: fixed; top: 20px; right: 20px; background: #7c3aed; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; }
+  @media print {
+    body { background: white; color: black; padding: 20px; }
+    .print-btn { display: none; }
+    .header { background: #f5f0ff; border: 2px solid #7c3aed; }
+    .service-name { color: #7c3aed; }
+    .user-name { color: #1a1a2e; }
+    .report { background: white; }
+    h2 { color: #7c3aed; }
+  }
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">📄 PDFで保存</button>
+<div class="header">
+  <div class="service-name">ELEKAVO — キャリア戦略レポート</div>
+  <div class="user-name">${s.name || '匿名ユーザー'}</div>
+  <div class="meta">${s.email || 'メールなし'} ／ 診断日: ${date}</div>
+</div>
+<div class="report">${reportHtml}</div>
+</body>
+</html>`;
+
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+  } catch(e) {
+    res.writeHead(500);
+    res.end('Error: ' + e.message);
+  }
+}
+
 function handleStats(req, res) {
   const sessions = readSessions();
   const total = sessions.length;
@@ -529,6 +616,11 @@ const server = http.createServer((req, res) => {
     handleUserHistory(req, res);
   } else if (parsedUrl.pathname === '/api/stats' && req.method === 'GET') {
     handleStats(req, res);
+  } else if (parsedUrl.pathname === '/api/sessions' && req.method === 'GET') {
+    handleGetSessions(req, res);
+  } else if (parsedUrl.pathname.startsWith('/report/') && req.method === 'GET') {
+    const sessionId = parsedUrl.pathname.replace('/report/', '');
+    handleReportPage(req, res, sessionId);
   } else if (parsedUrl.pathname === '/api/export-csv' && req.method === 'GET') {
     handleExportCSV(req, res);
   } else if (parsedUrl.pathname === '/api/match' && req.method === 'POST') {
