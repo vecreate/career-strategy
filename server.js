@@ -1,4 +1,5 @@
 const http = require('http');
+const nodemailer = require('nodemailer');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -203,6 +204,61 @@ const SYSTEM_PROMPT = `# キャリア戦略アドバイザー
 その後、ステージ1の1問目を聞く。`;
 
 
+
+// ── メール送信 ────────────────────────────────────────────────
+function createMailTransporter() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_PASS
+    }
+  });
+}
+
+async function sendResumeEmail(toEmail, toName, sessionId) {
+  if (!toEmail || !process.env.GMAIL_USER || !process.env.GMAIL_PASS) return;
+  const resumeUrl = 'https://career-strategy-production.up.railway.app/resume/' + sessionId;
+  const transporter = createMailTransporter();
+  const mailOptions = {
+    from: '"ELEKAVO" <' + process.env.GMAIL_USER + '>',
+    to: toEmail,
+    subject: '【ELEKAVO】続きはこちらから再開できます',
+    html: \`
+      <div style="font-family:'Hiragino Sans',sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#FFF8F3;">
+        <div style="text-align:center;margin-bottom:32px;">
+          <h1 style="color:#FF6B47;font-size:24px;letter-spacing:3px;margin:0;">ELEKAVO</h1>
+          <p style="color:#C4977E;font-size:12px;margin:4px 0 0;">Expand Your Perspective.</p>
+        </div>
+        <div style="background:#fff;border-radius:16px;padding:32px;border-left:4px solid #FF6B47;">
+          <p style="color:#2D1A0E;font-size:16px;margin:0 0 16px;">\${toName ? toName + 'さん、' : ''}こんにちは！</p>
+          <p style="color:#5C3D2E;font-size:14px;line-height:1.8;margin:0 0 24px;">
+            ELEKAVOでの対話の途中保存が完了しました。<br>
+            下のボタンから続きを再開できます。
+          </p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="\${resumeUrl}" style="background:#FF6B47;color:#fff;text-decoration:none;padding:16px 40px;border-radius:50px;font-weight:bold;font-size:15px;display:inline-block;">
+              ▶ 続きから再開する
+            </a>
+          </div>
+          <p style="color:#C4977E;font-size:11px;text-align:center;margin:16px 0 0;">
+            ※ このURLは\${resumeUrl}です。<br>ブックマークしておくと便利です。
+          </p>
+        </div>
+        <p style="color:#C4977E;font-size:11px;text-align:center;margin-top:24px;">
+          ELEKAVO — あなたの視点が、未来の選択肢を広げる。
+        </p>
+      </div>
+    \`
+  };
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('[MAIL] 送信完了 → ' + toEmail);
+  } catch(e) {
+    console.error('[MAIL] 送信エラー:', e.message);
+  }
+}
+
 // ── 途中保存・再開 ────────────────────────────────────────────
 const PROGRESS_FILE = path.join(__dirname, 'data', 'progress.json');
 
@@ -220,8 +276,13 @@ function handleSaveProgress(req, res) {
       const { sessionId, messages, currentStage, user } = JSON.parse(body);
       if (!sessionId) { res.writeHead(400); res.end('{}'); return; }
       const progress = loadProgress();
+      const isFirst = !progress[sessionId]; // 初回保存かチェック
       progress[sessionId] = { sessionId, messages, currentStage, user, savedAt: new Date().toISOString() };
       fs.writeFileSync(PROGRESS_FILE, JSON.stringify(progress, null, 2));
+      // 初回保存時のみメール送信
+      if (isFirst && user && user.email) {
+        sendResumeEmail(user.email, user.name, sessionId).catch(() => {});
+      }
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(JSON.stringify({ ok: true }));
     } catch(e) {
