@@ -625,7 +625,7 @@ async function sendToAI(msgs) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: msgs })
+      body: JSON.stringify({ messages: msgs, stage: currentStage })
     });
 
     const contentType = res.headers.get('content-type') || '';

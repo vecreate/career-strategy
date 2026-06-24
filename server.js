@@ -242,6 +242,73 @@ function handleLoadProgress(req, res, sessionId) {
   }
 }
 
+
+// ── EMAIL（Resend API）──────────────────────────────────────
+function sendReportEmail(toEmail, toName, sessionId) {
+  if (!toEmail || !process.env.RESEND_API_KEY) {
+    console.log('[MAIL] skipped – no email or no RESEND_API_KEY');
+    return;
+  }
+  const reportUrl = 'https://career-strategy-production.up.railway.app/report/' + sessionId;
+  const nameStr = toName ? toName + 'さん' : 'あなた';
+  const html = `
+    <div style="font-family:'Hiragino Sans',sans-serif;max-width:560px;margin:0 auto;padding:40px 20px;background:#FFF8F3;">
+      <div style="text-align:center;margin-bottom:28px;">
+        <h1 style="color:#FF6B47;font-size:22px;letter-spacing:3px;margin:0;">ELEKAVO</h1>
+        <p style="color:#C4977E;font-size:11px;margin:4px 0 0;">Expand Your Perspective.</p>
+      </div>
+      <div style="background:#fff;border-radius:14px;padding:28px;border-left:4px solid #FF6B47;">
+        <p style="color:#2D1A0E;font-size:15px;margin:0 0 14px;">\${nameStr}、お疲れさまでした！</p>
+        <p style="color:#5C3D2E;font-size:13px;line-height:1.9;margin:0 0 22px;">
+          ELEKAVOでの対話が完了しました。<br>
+          あなただけのキャリアレポートを下のボタンから確認できます。
+        </p>
+        <div style="text-align:center;margin:28px 0;">
+          <a href="\${reportUrl}"
+             style="background:#FF6B47;color:#fff;text-decoration:none;
+                    padding:14px 36px;border-radius:50px;font-weight:bold;
+                    font-size:14px;display:inline-block;">
+            レポートを見る
+          </a>
+        </div>
+        <p style="color:#C4977E;font-size:10px;text-align:center;margin:14px 0 0;">
+          URLをブックマークしておくといつでも見返せます
+        </p>
+      </div>
+      <p style="color:#C4977E;font-size:10px;text-align:center;margin-top:20px;">
+        ELEKAVO — あなたの視点が、未来の選択肢を広げる。
+      </p>
+    </div>
+  `;
+
+  const payload = JSON.stringify({
+    from: 'ELEKAVO <onboarding@resend.dev>',
+    to: [toEmail],
+    subject: '【ELEKAVO】あなたのキャリアレポートが届きました',
+    html
+  });
+
+  const reqOptions = {
+    hostname: 'api.resend.com',
+    path: '/emails',
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + process.env.RESEND_API_KEY,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload)
+    }
+  };
+
+  const apiReq = https.request(reqOptions, (apiRes) => {
+    let data = '';
+    apiRes.on('data', c => data += c);
+    apiRes.on('end', () => console.log('[MAIL] Resend:', apiRes.statusCode, data));
+  });
+  apiReq.on('error', e => console.error('[MAIL] Error:', e.message));
+  apiReq.write(payload);
+  apiReq.end();
+}
+
 // ── DATA STORAGE ──────────────────────────────────────────
 const DATA_DIR   = path.join(__dirname, 'data');
 const DATA_FILE  = path.join(DATA_DIR, 'sessions.json');
@@ -319,6 +386,10 @@ function handleSaveSession(req, res) {
       const sessions = readSessions();
       sessions.push(session);
       writeSessions(sessions);
+
+      if (data.email) {
+        sendReportEmail(data.email, data.name || '', session.id);
+      }
 
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(JSON.stringify({ ok: true, sessionId: session.id }));
@@ -585,7 +656,7 @@ function handleChat(req, res) {
   let body = '';
   req.on('data', chunk => body += chunk);
   req.on('end', () => {
-    const { messages } = JSON.parse(body);
+    const { messages, stage } = JSON.parse(body);
     const apiKey = process.env.ANTHROPIC_API_KEY || '';
 
     function doStream(model, attempt) {
@@ -668,7 +739,9 @@ function handleChat(req, res) {
       apiReq.end();
     }
 
-    doStream('claude-sonnet-4-6', 1);
+    // stage 1-5: Haiku（軽量）、stage 6: Sonnet（レポート品質）
+    const model = (stage && stage >= 6) ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001';
+    doStream(model, 1);
   });
 }
 
