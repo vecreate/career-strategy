@@ -202,6 +202,46 @@ const SYSTEM_PROMPT = `# キャリア戦略アドバイザー
 
 その後、ステージ1の1問目を聞く。`;
 
+
+// ── 途中保存・再開 ────────────────────────────────────────────
+const PROGRESS_FILE = path.join(__dirname, 'data', 'progress.json');
+
+function loadProgress() {
+  try {
+    return fs.existsSync(PROGRESS_FILE) ? JSON.parse(fs.readFileSync(PROGRESS_FILE, 'utf8')) : {};
+  } catch(e) { return {}; }
+}
+
+function handleSaveProgress(req, res) {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { sessionId, messages, currentStage, user } = JSON.parse(body);
+      if (!sessionId) { res.writeHead(400); res.end('{}'); return; }
+      const progress = loadProgress();
+      progress[sessionId] = { sessionId, messages, currentStage, user, savedAt: new Date().toISOString() };
+      fs.writeFileSync(PROGRESS_FILE, JSON.stringify(progress, null, 2));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+  });
+}
+
+function handleLoadProgress(req, res, sessionId) {
+  try {
+    const progress = loadProgress();
+    const data = progress[sessionId];
+    if (!data) { res.writeHead(404); res.end(JSON.stringify({ error: 'not found' })); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(data));
+  } catch(e) {
+    res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+  }
+}
+
 // ── DATA STORAGE ──────────────────────────────────────────
 const DATA_DIR   = path.join(__dirname, 'data');
 const DATA_FILE  = path.join(DATA_DIR, 'sessions.json');
@@ -662,6 +702,13 @@ const server = http.createServer((req, res) => {
     handleUserHistory(req, res);
   } else if (parsedUrl.pathname === '/api/stats' && req.method === 'GET') {
     handleStats(req, res);
+  } else if (parsedUrl.pathname === '/api/save-progress' && req.method === 'POST') {
+    handleSaveProgress(req, res);
+  } else if (parsedUrl.pathname.startsWith('/api/load-progress/') && req.method === 'GET') {
+    const sid = parsedUrl.pathname.replace('/api/load-progress/', '');
+    handleLoadProgress(req, res, sid);
+  } else if (parsedUrl.pathname.startsWith('/resume/') && req.method === 'GET') {
+    serveHtml(res, path.join(__dirname, 'public', 'index.html'));
   } else if (parsedUrl.pathname === '/api/sessions' && req.method === 'GET') {
     handleGetSessions(req, res);
   } else if (parsedUrl.pathname.startsWith('/report/') && req.method === 'GET') {

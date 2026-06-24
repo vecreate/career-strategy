@@ -443,9 +443,76 @@ let sessionStart = null;
 let turnCount = 0;
 let currentUser = { name: '', email: '' }; // 登録ユーザー情報
 let lastReportText = ''; // レポート全文（メール送信用）
+let resumeSessionId = null; // 途中保存セッションID
 
 // Stage markers: AI outputs [STAGE:N] when transitioning
 const stageNames = ['開始前','家庭環境','バイト/日常','人間関係','自己認識','エネルギー','戦略レポート'];
+
+
+// ── 途中保存・再開 ──────────────────────────────────────────
+function genSessionId() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+async function saveProgress() {
+  if (!resumeSessionId) resumeSessionId = genSessionId();
+  await fetch('/api/save-progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: resumeSessionId,
+      messages,
+      currentStage,
+      user: currentUser
+    })
+  }).catch(() => {});
+  // URLをセッションIDで更新（ブックマーク可能に）
+  const newUrl = '/resume/' + resumeSessionId;
+  if (window.location.pathname !== newUrl) {
+    window.history.replaceState(null, '', newUrl);
+  }
+}
+
+async function tryResumeFromUrl() {
+  const m = window.location.pathname.match(/^\/resume\/([a-z0-9]+)$/);
+  if (!m) return false;
+  resumeSessionId = m[1];
+  try {
+    const res = await fetch('/api/load-progress/' + resumeSessionId);
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.messages || data.messages.length === 0) return false;
+
+    // 状態を復元
+    currentUser = data.user || { name: '', email: '' };
+    currentStage = data.currentStage || 0;
+    messages = data.messages;
+
+    // ウェルカム画面を隠してチャット表示
+    document.getElementById('welcome').style.display = 'none';
+    document.getElementById('input-area').style.display = 'block';
+    document.getElementById('chat-wrap').style.display = 'block';
+    updateStageBar(currentStage);
+
+    // 過去のメッセージを表示（最後の10件）
+    const recentMsgs = messages.slice(-10);
+    recentMsgs.forEach(m => {
+      if (m.role === 'user') addMessage('user', m.content);
+      else if (m.role === 'assistant') addMessage('ai', m.content);
+    });
+
+    // 続きの案内
+    const info = document.createElement('div');
+    info.style.cssText = 'text-align:center;padding:12px;font-size:12px;color:var(--text-dim);border:1px dashed var(--border);border-radius:8px;margin:8px 0;';
+    info.textContent = '✅ 前回の続きから再開しました。続きを入力してください。';
+    document.getElementById('chat-wrap').appendChild(info);
+    document.getElementById('chat-wrap').scrollTop = 999999;
+
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
 
 async function startChat() {
   const name  = document.getElementById('input-name').value.trim();
@@ -624,6 +691,7 @@ async function sendToAI(msgs) {
     chatWrap.scrollTop = chatWrap.scrollHeight;
     turnCount++;
     messages.push({ role: 'assistant', content: aiText });
+    saveProgress(); // 毎ターン自動保存
 
   } catch (e) {
     removeTyping();
