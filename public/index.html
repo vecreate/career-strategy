@@ -8,17 +8,17 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0f0f0f;
-    --surface: #1a1a1a;
-    --surface2: #242424;
-    --border: #2e2e2e;
-    --accent: #7c3aed;
-    --accent-dim: rgba(124, 58, 237, 0.15);
-    --text: #f0f0f0;
-    --text-sub: #888;
-    --text-dim: #555;
-    --user-bg: #1e1535;
-    --ai-bg: #1a1a1a;
+    --bg: #FFF8F3;
+    --surface: #ffffff;
+    --surface2: #FFF0EB;
+    --border: #FFD5C8;
+    --accent: #FF6B47;
+    --accent-dim: rgba(255, 107, 71, 0.12);
+    --text: #2D1A0E;
+    --text-sub: #9E6B57;
+    --text-dim: #C4977E;
+    --user-bg: #FF6B47;
+    --ai-bg: #ffffff;
   }
 
   body {
@@ -99,7 +99,12 @@
     font-size: 13px; font-weight: 700; flex-shrink: 0;
     margin-top: 2px;
   }
-  .ai-avatar { background: var(--accent); color: #fff; }
+  .ai-avatar {
+    background: linear-gradient(135deg, #FF8C69, #FF6B47);
+    color: #fff;
+    font-size: 18px;
+    box-shadow: 0 3px 10px rgba(255,107,71,0.3);
+  }
   .user-avatar { background: var(--surface2); color: var(--text-sub); border: 1px solid var(--border); }
 
   .bubble {
@@ -111,11 +116,13 @@
   }
   .ai .bubble {
     background: var(--ai-bg);
+    border-left: 3px solid var(--accent);
     border: 1px solid var(--border);
     border-top-left-radius: 4px;
   }
   .user .bubble {
     background: var(--user-bg);
+    color: #fff;
     border: 1px solid rgba(124,58,237,0.3);
     border-top-right-radius: 4px;
   }
@@ -327,7 +334,7 @@
   .match-bar-fill.top   { background: linear-gradient(90deg,#059669,#10b981); }
   .match-pct  { font-size: 12px; font-weight: 700; width: 36px; text-align: right; flex-shrink: 0; }
   .match-pct.top-pct  { color: #10b981; }
-  .match-pct.high-pct { color: #a78bfa; }
+  .match-pct.high-pct { color: var(--accent); }
   .match-actions {
     margin-left: 36px; font-size: 11px; color: var(--text-dim);
     margin-top: -6px; margin-bottom: 10px; line-height: 1.7;
@@ -364,7 +371,7 @@
 
 <!-- Header -->
 <header>
-  <div class="logo">CAREER<span>.</span>STRATEGY</div>
+  <div class="logo"><span style="color:var(--accent)">ELEKAVO</span></div>
   <div style="font-size:11px;color:var(--text-dim)">Expand Your Perspective.</div>
 </header>
 
@@ -388,7 +395,7 @@
 <!-- Chat -->
 <div id="chat-wrap">
   <div id="welcome">
-    <div class="icon">🎯</div>
+    <div class="icon">🧑‍🏫</div>
     <h1>ELEKAVO</h1>
     <p>視点が増えると、 未来の選択肢も増える。<br>今いる環境を見直し、そこから戦略を作ります。</p>
     <div class="user-form">
@@ -481,7 +488,7 @@ function addMessage(role, content) {
 
   const avatar = document.createElement('div');
   avatar.className = `avatar ${role === 'ai' ? 'ai-avatar' : 'user-avatar'}`;
-  avatar.textContent = role === 'ai' ? 'AI' : 'You';
+  avatar.textContent = role === 'ai' ? '🧑‍🏫' : '😊';
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
